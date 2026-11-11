@@ -1,6 +1,6 @@
 [package]
 name = "clash-verge"
-version = "2.5.10"
+version = "2.5.10-local.1"
 description = "clash verge"
 authors = ["zzzgydi", "Tunglies", "wonfen", "MystiPanda"]
 license = "GPL-3.0-only"
@@ -17,6 +17,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+local-build = []
 verge-dev = ["clash-verge-logging/color", "clash_verge_service_ipc/development-channel"]
 dev-sidecar = ["verge-dev"]
 tauri-dev = ["dep:tauri-plugin-devtools"]

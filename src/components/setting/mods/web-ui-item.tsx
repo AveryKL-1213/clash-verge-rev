@@ -39,7 +39,7 @@ export const WebUIItem = (props: Props) => {
   const { t } = useTranslation()
 
   const highlightedParts = useMemo(() => {
-    const placeholderRegex = /(%host|%port|%secret)/g
+    const placeholderRegex = /(%host|%port)/g
     if (!value) {
       return ['NULL']
     }
@@ -60,9 +60,7 @@ export const WebUIItem = (props: Props) => {
             size="small"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            placeholder={t(
-              'settings.modals.webUI.messages.supportedPlaceholders',
-            )}
+            placeholder="Supported placeholders: %host, %port"
           />
           <IconButton
             size="small"
@@ -93,8 +91,7 @@ export const WebUIItem = (props: Props) => {
   }
 
   const renderedParts = highlightedParts.map((part, index) => {
-    const isPlaceholder =
-      part === '%host' || part === '%port' || part === '%secret'
+    const isPlaceholder = part === '%host' || part === '%port'
     const repeatIndex = highlightedParts
       .slice(0, index)
       .filter((prev) => prev === part).length

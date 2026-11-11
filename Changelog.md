@@ -1,3 +1,13 @@
+## v2.5.10-local.1
+
+- 修复编辑器 HTML 清理及核心网络依赖的已公告安全问题。
+- 修复启动环境变量绕过本地限制的问题，禁用核心 shell hooks。
+
+- 修复 WebDAV 备份接受无效证书及不安全重定向的问题。
+- 修复打开 WebUI 时控制密钥可能进入网址的问题。
+- 新增本地版本更新限制，防止已审查程序被下载更新覆盖。
+- 优化管理接口访问范围，保留局域网 DNS 和 TUN 网关能力。
+
 <!-- Release-notes skeleton. Entries accumulate in ./Changelog.md as PRs land;
      before publishing a release, distill them:
      - user-visible changes only — no dev tooling, CI fixes, or refactors whose

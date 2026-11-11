@@ -1,4 +1,4 @@
-import { Button, Grid, Stack, TextField } from '@mui/material'
+import { Alert, Button, Grid, Stack, TextField } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import { memo, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
@@ -81,6 +81,11 @@ export const BackupConfigViewer = memo(
         urlRef.current?.focus()
         showNotice.error('settings.modals.backup.messages.invalidWebdavUrl')
         throw new Error(t('settings.modals.backup.messages.invalidWebdavUrl'))
+      }
+      if (new URL(url).protocol !== 'https:') {
+        throw new Error(
+          'WebDAV backups require HTTPS with a valid server certificate',
+        )
       }
       if (!username) {
         usernameRef.current?.focus()
@@ -170,6 +175,10 @@ export const BackupConfigViewer = memo(
 
     return (
       <form onSubmit={(e) => e.preventDefault()}>
+        <Alert severity="info" sx={{ mb: 1 }}>
+          WebDAV backups require HTTPS with a valid server certificate.
+          Redirects must stay on the same server.
+        </Alert>
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 9 }}>
             <Grid container spacing={2}>

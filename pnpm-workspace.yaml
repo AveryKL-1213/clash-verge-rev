@@ -1,4 +1,6 @@
 enablePrePostScripts: false
+overrides:
+  dompurify: 3.4.17
 allowBuilds:
   "@parcel/watcher": true
   core-js: true
@@ -18,3 +20,5 @@ minimumReleaseAgeExclude:
   - "@tsrs/linux-x64-musl@0.20.0-ts7.1.0-beta"
   - "@tsrs/win32-x64@0.20.0-ts7.1.0-beta"
   - tsrs@0.20.0-ts7.1.0-beta
+patchedDependencies:
+  monaco-editor@0.57.0: local-build/patches/monaco-editor@0.57.0.patch

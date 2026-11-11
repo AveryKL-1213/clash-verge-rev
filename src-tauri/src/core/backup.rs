@@ -24,6 +24,23 @@ const TIMEOUT_DOWNLOAD: u64 = 300;
 const TIMEOUT_LIST: u64 = 30;
 const TIMEOUT_DELETE: u64 = 30;
 
+pub(crate) fn validate_webdav_url(value: &str) -> Result<(), Error> {
+    let url = reqwest::Url::parse(value)?;
+    anyhow::ensure!(
+        url.scheme() == "https" && url.host_str().is_some(),
+        "WebDAV backups require HTTPS with a valid server certificate"
+    );
+    anyhow::ensure!(
+        url.username().is_empty() && url.password().is_none(),
+        "Enter WebDAV credentials in the username and password fields, not the URL"
+    );
+    Ok(())
+}
+
+fn webdav_redirect_allowed(from: &reqwest::Url, to: &reqwest::Url) -> bool {
+    to.scheme() == "https" && from.origin() == to.origin()
+}
+
 #[derive(Clone)]
 struct WebDavConfig {
     url: String,
@@ -101,16 +118,23 @@ impl WebDavClient {
             }
         };
 
+        validate_webdav_url(&config.url)?;
         let client = reqwest_dav::ClientBuilder::new()
             .set_agent(
                 reqwest::Client::builder()
                     .use_rustls_tls()
-                    .danger_accept_invalid_certs(true)
+                    .https_only(true)
                     .timeout(Duration::from_secs(op.timeout()))
                     .user_agent(format!("clash-verge/{APP_VERSION} ({OS} WebDAV-Client)"))
                     .redirect(reqwest::redirect::Policy::custom(|attempt| {
                         if attempt.previous().len() >= 5 {
-                            attempt.error("重定向次数过多")
+                            attempt.error("Too many WebDAV redirects")
+                        } else if attempt
+                            .previous()
+                            .first()
+                            .is_some_and(|source| !webdav_redirect_allowed(source, attempt.url()))
+                        {
+                            attempt.error("WebDAV redirects must stay on the same HTTPS origin")
                         } else {
                             attempt.follow()
                         }
@@ -317,4 +341,35 @@ pub async fn create_backup() -> Result<(String, PathBuf), Error> {
     zip.write_all(fs::read(dirs::profiles_path()?).await?.as_slice())?;
     zip.finish()?;
     Ok((zip_file_name, zip_path))
+}
+
+#[cfg(test)]
+mod transport_tests {
+    use super::{validate_webdav_url, webdav_redirect_allowed};
+
+    #[test]
+    fn credentials_and_backups_require_https() {
+        assert!(validate_webdav_url("https://backup.example/dav").is_ok());
+        for rejected in [
+            "http://backup.example/dav",
+            "http://127.0.0.1/dav",
+            "https://user:pass@backup.example/dav",
+        ] {
+            assert!(validate_webdav_url(rejected).is_err());
+        }
+    }
+
+    #[test]
+    fn redirects_cannot_downgrade_or_move_backups_to_another_origin() -> anyhow::Result<()> {
+        let origin = reqwest::Url::parse("https://backup.example/dav")?;
+        assert!(webdav_redirect_allowed(&origin, &origin.join("/dav/")?));
+        for rejected in [
+            "http://backup.example/dav",
+            "https://other.example/dav",
+            "https://backup.example:8443/dav",
+        ] {
+            assert!(!webdav_redirect_allowed(&origin, &reqwest::Url::parse(rejected)?));
+        }
+        Ok(())
+    }
 }

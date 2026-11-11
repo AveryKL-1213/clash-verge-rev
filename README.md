@@ -1,3 +1,5 @@
+> Local security fork: see [本地构建与维护](docs/local/build.zh-CN.md) and [替换与回退](docs/local/gateway-maintenance.zh-CN.md). Build and installation are separate steps.
+
 <h1 align="center">
   <img src="./src-tauri/icons/icon.png" alt="Clash" width="128" />
   <br>

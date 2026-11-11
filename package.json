@@ -1,16 +1,16 @@
 {
   "name": "clash-verge",
-  "version": "2.5.10",
+  "version": "2.5.10-local.1",
   "license": "GPL-3.0-only",
   "scripts": {
     "prepare": "husky || true",
-    "dev": "node scripts/dev.mjs dev",
+    "dev": "python3 scripts/local/build.py ui",
     "dev:service": "node scripts/dev.mjs service",
     "dev:sidecar": "node scripts/dev.mjs sidecar",
     "dev:diff": "node scripts/dev.mjs dev",
     "dev:trace": "node scripts/dev.mjs trace",
     "dev:tauri": "cross-env RUST_BACKTRACE=full tauri dev -f tauri-dev",
-    "build": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tauri build",
+    "build": "python3 scripts/local/build.py release",
     "build:fast": "cross-env NODE_OPTIONS='--max-old-space-size=4096' tauri build -- --profile fast-release",
     "tauri": "tauri",
     "web:dev": "vite",
@@ -40,7 +40,10 @@
     "perf:build": "node scripts/perf/build.mjs",
     "perf:run": "node scripts/perf/run.mjs",
     "perf:compare": "node scripts/perf/compare.mjs",
-    "perf:test": "node --test scripts/perf/report.test.mjs"
+    "perf:test": "node --test scripts/perf/report.test.mjs",
+    "local:bootstrap": "python3 scripts/local/build.py bootstrap",
+    "local:release": "python3 scripts/local/build.py release",
+    "local:ui": "python3 scripts/local/build.py ui"
   },
   "dependencies": {
     "@dnd-kit/collision": "^0.5.0",

@@ -1,0 +1,17 @@
+{
+  "version": "2.5.10-local.1",
+  "bundle": {
+    "targets": ["app"],
+    "publisher": "Local Build",
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "signingIdentity": "-",
+      "infoPlist": "packages/macos/info_local.plist"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": []
+    }
+  }
+}

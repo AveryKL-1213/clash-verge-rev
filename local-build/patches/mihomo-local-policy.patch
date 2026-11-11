@@ -1,0 +1,637 @@
+diff --git a/component/updater/local_policy.go b/component/updater/local_policy.go
+new file mode 100644
+index 0000000..ee73fbf
+--- /dev/null
++++ b/component/updater/local_policy.go
+@@ -0,0 +1,11 @@
++package updater
++
++import "errors"
++
++// ErrLocalArtifactUpdatesDisabled keeps this local build on its audited artifacts.
++// Updating binaries or dashboard code requires a new offline local release.
++var ErrLocalArtifactUpdatesDisabled = errors.New("artifact downloads are disabled in this local build; install a new local release")
++
++func enforceLocalArtifactPolicy() error {
++	return ErrLocalArtifactUpdatesDisabled
++}
+diff --git a/component/updater/local_policy_test.go b/component/updater/local_policy_test.go
+new file mode 100644
+index 0000000..78f52af
+--- /dev/null
++++ b/component/updater/local_policy_test.go
+@@ -0,0 +1,46 @@
++package updater
++
++import (
++	"errors"
++	"os"
++	"path/filepath"
++	"testing"
++)
++
++func TestLocalPolicyRejectsArtifactDownloads(t *testing.T) {
++	directory := t.TempDir()
++	core := filepath.Join(directory, "core")
++	original := []byte("local source-built core fixture")
++	if err := os.WriteFile(core, original, 0o700); err != nil {
++		t.Fatal(err)
++	}
++
++	for _, channel := range []string{"", ReleaseChannel, AlphaChannel} {
++		err := DefaultCoreUpdater.Update(core, channel, true)
++		if !errors.Is(err, ErrLocalArtifactUpdatesDisabled) {
++			t.Fatalf("channel %q: expected local policy rejection, got %v", channel, err)
++		}
++	}
++	// Policy rejection also precedes checking or replacing the current binary.
++	if err := DefaultCoreUpdater.Update(filepath.Join(directory, "absent"), ReleaseChannel, false); !errors.Is(err, ErrLocalArtifactUpdatesDisabled) {
++		t.Fatalf("expected policy rejection for absent executable, got %v", err)
++	}
++	data, err := os.ReadFile(core)
++	if err != nil || string(data) != string(original) {
++		t.Fatalf("the local executable changed: %q, %v", data, err)
++	}
++
++	ui := &UIUpdater{
++		externalUIPath: filepath.Join(directory, "ui"),
++		externalUIURL:  "://invalid-policy-test-url",
++		autoDownloadUI: true,
++	}
++	if err := ui.DownloadUI(); !errors.Is(err, ErrLocalArtifactUpdatesDisabled) {
++		t.Fatalf("expected UI policy rejection before URL parsing, got %v", err)
++	}
++	ui.AutoDownloadUI()
++	entries, err := os.ReadDir(directory)
++	if err != nil || len(entries) != 1 || entries[0].Name() != "core" {
++		t.Fatalf("artifact updates created unexpected files: %v, %v", entries, err)
++	}
++}
+diff --git a/component/updater/update_core.go b/component/updater/update_core.go
+index 0afa94a..f48e57a 100644
+--- a/component/updater/update_core.go
++++ b/component/updater/update_core.go
+@@ -81,6 +81,9 @@ func (u *CoreUpdater) CoreBaseName() string {
+ }
+ 
+ func (u *CoreUpdater) Update(currentExePath string, channel string, force bool) (err error) {
++	if err := enforceLocalArtifactPolicy(); err != nil {
++		return err
++	}
+ 	u.mu.Lock()
+ 	defer u.mu.Unlock()
+ 
+diff --git a/component/updater/update_ui.go b/component/updater/update_ui.go
+index 878adc1..f4896ba 100644
+--- a/component/updater/update_ui.go
++++ b/component/updater/update_ui.go
+@@ -72,6 +72,9 @@ func NewUiUpdater(externalUI, externalUIURL, externalUIName string) *UIUpdater {
+ }
+ 
+ func (u *UIUpdater) AutoDownloadUI() {
++	if enforceLocalArtifactPolicy() != nil {
++		return
++	}
+ 	u.mutex.Lock()
+ 	defer u.mutex.Unlock()
+ 	if u.autoDownloadUI {
+@@ -113,6 +116,9 @@ func detectFileType(data []byte) compressionType {
+ }
+ 
+ func (u *UIUpdater) downloadUI() error {
++	if err := enforceLocalArtifactPolicy(); err != nil {
++		return err
++	}
+ 	data, err := downloadForBytes(u.externalUIURL)
+ 	if err != nil {
+ 		return fmt.Errorf("can't download file: %w", err)
+diff --git a/constant/local_policy_test.go b/constant/local_policy_test.go
+new file mode 100644
+index 0000000..8db3ddd
+--- /dev/null
++++ b/constant/local_policy_test.go
+@@ -0,0 +1,24 @@
++package constant
++
++import (
++	"path/filepath"
++	"testing"
++)
++
++func TestLocalPolicyRejectsEnvironmentPathExpansion(t *testing.T) {
++	directory := t.TempDir()
++	profile := filepath.Join(directory, "profile")
++	outside := filepath.Join(directory, "outside")
++	t.Setenv("SKIP_SAFE_PATH_CHECK", "true")
++	t.Setenv("SAFE_PATHS", outside)
++	local := newLocalPath(profile)
++	if local.allowUnsafePath || len(local.safePaths) != 0 {
++		t.Fatal("inherited environment weakened the local path policy")
++	}
++	if local.IsSafePath(filepath.Join(outside, "core")) || local.IsSafePath("../outside/core") {
++		t.Fatal("an outside path was accepted")
++	}
++	if !local.IsSafePath("rules/local.yaml") || !local.IsSafePath(filepath.Join(profile, "config.yaml")) {
++		t.Fatal("valid files inside the configured profile were rejected")
++	}
++}
+diff --git a/constant/path.go b/constant/path.go
+index f2463a4..6ba863d 100644
+--- a/constant/path.go
++++ b/constant/path.go
+@@ -5,7 +5,6 @@ import (
+ 	"os"
+ 	P "path"
+ 	"path/filepath"
+-	"strconv"
+ 	"strings"
+ 
+ 	"github.com/metacubex/mihomo/common/utils"
+@@ -30,7 +29,6 @@ var Path = func() *path {
+ 	if err != nil {
+ 		homeDir, _ = os.Getwd()
+ 	}
+-	allowUnsafePath, _ := strconv.ParseBool(os.Getenv("SKIP_SAFE_PATH_CHECK"))
+ 	homeDir = P.Join(homeDir, ".config", Name)
+ 
+ 	if _, err = os.Stat(homeDir); err != nil {
+@@ -39,18 +37,14 @@ var Path = func() *path {
+ 		}
+ 	}
+ 
+-	var safePaths []string
+-	for _, safePath := range filepath.SplitList(os.Getenv("SAFE_PATHS")) {
+-		safePath = strings.TrimSpace(safePath)
+-		if len(safePath) == 0 {
+-			continue
+-		}
+-		safePaths = append(safePaths, safePath)
+-	}
+-
+-	return &path{homeDir: homeDir, configFile: "config.yaml", allowUnsafePath: allowUnsafePath, safePaths: safePaths}
++	return newLocalPath(homeDir)
+ }()
+ 
++func newLocalPath(homeDir string) *path {
++	// Inherited environment cannot disable or widen the local path policy.
++	return &path{homeDir: homeDir, configFile: "config.yaml"}
++}
++
+ type path struct {
+ 	homeDir         string
+ 	configFile      string
+@@ -84,7 +78,7 @@ func (p *path) Resolve(path string) string {
+ 	return path
+ }
+ 
+-// IsSafePath return true if path is a subpath of homedir (or in the SAFE_PATHS environment variable)
++// IsSafePath returns true for paths inside the allowed configuration paths.
+ func (p *path) IsSafePath(path string) bool {
+ 	if p.allowUnsafePath || features.CMFA {
+ 		return true
+@@ -114,7 +108,7 @@ type ErrNotSafePath struct {
+ }
+ 
+ func (e ErrNotSafePath) Error() string {
+-	return fmt.Sprintf("path is not subpath of home directory or SAFE_PATHS: %s \n allowed paths: %s", e.Path, e.SafePaths)
++	return fmt.Sprintf("path is not within allowed configuration paths: %s \n allowed paths: %s", e.Path, e.SafePaths)
+ }
+ 
+ func (p *path) GetPathByHash(prefix, name string) string {
+diff --git a/go.mod b/go.mod
+index 748fd5e..81aed1d 100644
+--- a/go.mod
++++ b/go.mod
+@@ -1,6 +1,6 @@
+ module github.com/metacubex/mihomo
+ 
+-go 1.20
++go 1.26.0
+ 
+ require (
+ 	github.com/bahlo/generic-list-go v0.2.0
+@@ -64,18 +64,18 @@ require (
+ 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
+ )
+ 
+-// lastest version compatible with golang1.20
++// Versions selected for the local security build.
+ require (
+ 	github.com/insomniacslk/dhcp v0.0.0-20250109001534-8abf58130905
+-	github.com/klauspost/compress v1.17.9
++	github.com/klauspost/compress v1.20.2
+ 	github.com/mdlayher/netlink v1.7.2
+ 	github.com/miekg/dns v1.1.63
+ 	github.com/oschwald/maxminddb-golang v1.12.0
+-	golang.org/x/crypto v0.33.0
++	golang.org/x/crypto v0.57.0
+ 	golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e
+-	golang.org/x/net v0.35.0
+-	golang.org/x/sync v0.11.0
+-	golang.org/x/sys v0.30.0
++	golang.org/x/net v0.60.0
++	golang.org/x/sync v0.23.0
++	golang.org/x/sys v0.48.0
+ 	google.golang.org/protobuf v1.34.2
+ )
+ 
+@@ -84,7 +84,7 @@ require (
+ 	github.com/Yawning/aez v0.0.0-20211027044916-e49e68abd344 // indirect
+ 	github.com/ajg/form v1.7.1 // indirect
+ 	github.com/akutz/memconn v0.1.0 // indirect
+-	github.com/andybalholm/brotli v1.1.1 // indirect
++	github.com/andybalholm/brotli v1.2.7 // indirect
+ 	github.com/bodgit/plumbing v1.3.0 // indirect
+ 	github.com/bodgit/windows v1.0.1 // indirect
+ 	github.com/coder/websocket v1.8.12 // indirect
+@@ -140,11 +140,11 @@ require (
+ 	github.com/x448/float16 v0.8.4 // indirect
+ 	gitlab.com/yawning/bsaes.git v0.0.0-20190805113838-0a714cd429ec // indirect
+ 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
+-	golang.org/x/mod v0.20.0 // indirect
+-	golang.org/x/term v0.29.0 // indirect
+-	golang.org/x/text v0.22.0 // indirect
++	golang.org/x/mod v0.41.0 // indirect
++	golang.org/x/term v0.46.0 // indirect
++	golang.org/x/text v0.42.0 // indirect
+ 	golang.org/x/time v0.10.0 // indirect
+-	golang.org/x/tools v0.24.0 // indirect
++	golang.org/x/tools v0.49.0 // indirect
+ )
+ 
+ // for https://github.com/golang/protobuf/issues/1704
+diff --git a/go.sum b/go.sum
+index f1b11ab..52d9708 100644
+--- a/go.sum
++++ b/go.sum
+@@ -9,6 +9,8 @@ github.com/akutz/memconn v0.1.0 h1:NawI0TORU4hcOMsMr11g7vwlCdkYeLKXBcxWu2W/P8A=
+ github.com/akutz/memconn v0.1.0/go.mod h1:Jo8rI7m0NieZyLI5e2CDlRdRqRRB4S7Xp77ukDjH+Fw=
+ github.com/andybalholm/brotli v1.1.1 h1:PR2pgnyFznKEugtsUo0xLdDop5SKXd5Qf5ysW+7XdTA=
+ github.com/andybalholm/brotli v1.1.1/go.mod h1:05ib4cKhjx3OQYUY22hTVd34Bc8upXjOLL2rKwwZBoA=
++github.com/andybalholm/brotli v1.2.7 h1:UgafRPGMam5ySHfRkhthMqOFA6IFoeF3D7mWIDLjG5A=
++github.com/andybalholm/brotli v1.2.7/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
+ github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
+ github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
+ github.com/blang/semver v3.5.1+incompatible/go.mod h1:kRBLl5iJ+tD4TcOOxsy/0fnwebNt5EWlYSAyrTnjyyk=
+@@ -81,6 +83,8 @@ github.com/jsimonetti/rtnetlink v1.4.0 h1:Z1BF0fRgcETPEa0Kt0MRk3yV5+kF1FWTni6KUF
+ github.com/jsimonetti/rtnetlink v1.4.0/go.mod h1:5W1jDvWdnthFJ7fxYX1GMK07BUpI4oskfOqvPteYS6E=
+ github.com/klauspost/compress v1.17.9 h1:6KIumPrER1LHsvBVuDa0r5xaG0Es51mhhB9BQB2qeMA=
+ github.com/klauspost/compress v1.17.9/go.mod h1:Di0epgTjJY877eYKx5yC51cX2A2Vl2ibi7bDH9ttBbw=
++github.com/klauspost/compress v1.20.2 h1:v5tiZvm1KGLyg5d5oXdXe3lsSPrbEUiKoXGia//I7Qo=
++github.com/klauspost/compress v1.20.2/go.mod h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=
+ github.com/klauspost/cpuid/v2 v2.2.6 h1:ndNyv040zDGIDh8thGkXYjnFtiN02M1PVVF+JE/48xc=
+ github.com/klauspost/cpuid/v2 v2.2.6/go.mod h1:Lcz8mBdAVJIBVzewtcLocK12l3Y+JytZYpaMropDUws=
+ github.com/klauspost/reedsolomon v1.12.3 h1:tzUznbfc3OFwJaTebv/QdhnFf2Xvb7gZ24XaHLBPmdc=
+@@ -290,19 +294,27 @@ golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACk
+ golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
+ golang.org/x/crypto v0.33.0 h1:IOBPskki6Lysi0lo9qQvbxiQ+FvsCC/YWOecCHAixus=
+ golang.org/x/crypto v0.33.0/go.mod h1:bVdXmD7IV/4GdElGPozy6U7lWdRXA4qyRVGJV57uQ5M=
++golang.org/x/crypto v0.57.0 h1:3ZVCjf8Ggz7zneR/EHRVx68Ctf+2pmIMP2UFhh9cC6M=
++golang.org/x/crypto v0.57.0/go.mod h1:Fdz0i5U6CoizGwLda9DttjSk6qlZo25zYNtR+ycvuZA=
+ golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e h1:I88y4caeGeuDQxgdoFPUq097j7kNfw6uvuiNxUBfcBk=
+ golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e/go.mod h1:akd2r19cwCdwSwWeIdzYQGa/EZZyqcOdwWiwj5L5eKQ=
+ golang.org/x/lint v0.0.0-20200302205851-738671d3881b/go.mod h1:3xt1FjdF8hUf6vQPIChWIBhFzV8gjjsPE/fR3IyQdNY=
+ golang.org/x/mod v0.1.1-0.20191105210325-c90efee705ee/go.mod h1:QqPTAvyqsEbceGzBzNggFXnrqF1CaUcvgkdR5Ot7KZg=
+ golang.org/x/mod v0.20.0 h1:utOm6MM3R3dnawAiJgn0y+xvuYRsm1RKM/4giyfDgV0=
+ golang.org/x/mod v0.20.0/go.mod h1:hTbmBsO62+eylJbnUtE2MGJUyE7QWk4xUqPFrRgJ+7c=
++golang.org/x/mod v0.41.0 h1:qJmnOUb4YB+FsEuM3HcWucdZASCPGhsX6uljO6pog0c=
++golang.org/x/mod v0.41.0/go.mod h1:Ek9pY8RKWXwsWvd3rQiHYtMqkjSUV+s1Rj7j4H5Ur6o=
+ golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3/go.mod h1:t9HGtf8HONx5eT2rtn7q6eTqICYqUVnKs3thJo3Qplg=
+ golang.org/x/net v0.0.0-20190620200207-3b0461eec859/go.mod h1:z5CRVTTTmAJ677TzLLGU+0bjPO0LkuOLi4/5GtJWs/s=
+ golang.org/x/net v0.35.0 h1:T5GQRQb2y08kTAByq9L4/bz8cipCdA8FbRTXewonqY8=
+ golang.org/x/net v0.35.0/go.mod h1:EglIi67kWsHKlRzzVMUD93VMSWGFOMSZgxFjparz1Qk=
++golang.org/x/net v0.60.0 h1:79p50tfZlm0J9YfoDsSi639qSXNGVwEzOPLCxM2FsYU=
++golang.org/x/net v0.60.0/go.mod h1:2DA/G1UfVbCpQPeWTmMPGY7Cs2PkBkwu743bVX5PIVg=
+ golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
+ golang.org/x/sync v0.11.0 h1:GGz8+XQP4FvTTrjZPzNKTMFtSXH80RAzG+5ghFPgK9w=
+ golang.org/x/sync v0.11.0/go.mod h1:Czt+wKu1gCyEFDUtn0jG5QVvpJ6rzVqr5aXyt9drQfk=
++golang.org/x/sync v0.23.0 h1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=
++golang.org/x/sync v0.23.0/go.mod h1:sUUOizhqBxiL6pEWpqNLUiaJn1ShEbZ6BBqskPbjZm0=
+ golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+ golang.org/x/sys v0.0.0-20190412213103-97732733099d/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+ golang.org/x/sys v0.0.0-20190606203320-7fc4e5ec1444/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+@@ -314,16 +326,24 @@ golang.org/x/sys v0.5.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.30.0 h1:QjkSwP/36a20jFYWkSue1YwXzLmsV5Gfq7Eiy72C1uc=
+ golang.org/x/sys v0.30.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
++golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=
++golang.org/x/sys v0.48.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
+ golang.org/x/term v0.29.0 h1:L6pJp37ocefwRRtYPKSWOWzOtWSxVajvz2ldH/xi3iU=
+ golang.org/x/term v0.29.0/go.mod h1:6bl4lRlvVuDgSf3179VpIxBF0o10JUpXWOnI7nErv7s=
++golang.org/x/term v0.46.0 h1:3+OXuTbaKDgwk8jTi3aSLHRlmWqHEUDUtxnbFigO4YE=
++golang.org/x/term v0.46.0/go.mod h1:+K02xbkittuwc0Am4abfA3Fc+XRGXkvBXNO88NCXPoc=
+ golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+ golang.org/x/text v0.22.0 h1:bofq7m3/HAFvbF51jz3Q9wLg3jkvSPuiZu/pD1XwgtM=
+ golang.org/x/text v0.22.0/go.mod h1:YRoo4H8PVmsu+E3Ou7cqLVH8oXWIHVoX0jqUWALQhfY=
++golang.org/x/text v0.42.0 h1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=
++golang.org/x/text v0.42.0/go.mod h1:ojzP1Z+2QtioaF8DTtO8K5q7JWVVYwZKenzujK0Zd0E=
+ golang.org/x/time v0.10.0 h1:3usCWA8tQn0L8+hFJQNgzpWbd89begxN66o1Ojdn5L4=
+ golang.org/x/time v0.10.0/go.mod h1:3BpzKBy/shNhVucY/MWOyx10tF3SFh9QdLuxbVysPQM=
+ golang.org/x/tools v0.0.0-20200130002326-2f3ba24bd6e7/go.mod h1:TB2adYChydJhpapKDTa4BR/hXlZSLoq2Wpct/0txZ28=
+ golang.org/x/tools v0.24.0 h1:J1shsA93PJUEVaUSaay7UXAyE8aimq3GW0pjlolpa24=
+ golang.org/x/tools v0.24.0/go.mod h1:YhNqVBIfWHdzvTLs0d8LCuMhkKUgSUKldakyV7W/WDQ=
++golang.org/x/tools v0.49.0 h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=
++golang.org/x/tools v0.49.0/go.mod h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo=
+ golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+ gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+ gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+diff --git a/hub/route/local_policy_test.go b/hub/route/local_policy_test.go
+new file mode 100644
+index 0000000..95a84b7
+--- /dev/null
++++ b/hub/route/local_policy_test.go
+@@ -0,0 +1,40 @@
++package route
++
++import (
++	"encoding/json"
++	"testing"
++
++	"github.com/metacubex/mihomo/component/updater"
++
++	"github.com/metacubex/chi"
++	"github.com/metacubex/http"
++	"github.com/metacubex/http/httptest"
++)
++
++func TestLocalPolicyUpgradeRoutes(t *testing.T) {
++	previousEmbedMode := embedMode
++	embedMode = false
++	t.Cleanup(func() { embedMode = previousEmbedMode })
++	router := chi.NewRouter()
++	router.Mount("/upgrade", upgradeRouter())
++
++	for _, path := range []string{
++		"/upgrade", "/upgrade/", "/upgrade?channel=alpha&force=true", "/upgrade/ui",
++	} {
++		t.Run(path, func(t *testing.T) {
++			request := httptest.NewRequest(http.MethodPost, path, nil)
++			recorder := httptest.NewRecorder()
++			router.ServeHTTP(recorder, request)
++			if recorder.Code != http.StatusForbidden {
++				t.Fatalf("expected HTTP 403, got %d: %s", recorder.Code, recorder.Body.String())
++			}
++			var response HTTPError
++			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
++				t.Fatal(err)
++			}
++			if response.Message != updater.ErrLocalArtifactUpdatesDisabled.Error() {
++				t.Fatalf("unexpected rejection: %q", response.Message)
++			}
++		})
++	}
++}
+diff --git a/hub/route/upgrade.go b/hub/route/upgrade.go
+index b359366..5d2a801 100644
+--- a/hub/route/upgrade.go
++++ b/hub/route/upgrade.go
+@@ -1,11 +1,7 @@
+ package route
+ 
+ import (
+-	"fmt"
+-	"os"
+-
+ 	"github.com/metacubex/mihomo/component/updater"
+-	"github.com/metacubex/mihomo/log"
+ 
+ 	"github.com/metacubex/chi"
+ 	"github.com/metacubex/chi/render"
+@@ -23,46 +19,11 @@ func upgradeRouter() http.Handler {
+ }
+ 
+ func upgradeCore(w http.ResponseWriter, r *http.Request) {
+-	// modify from https://github.com/AdguardTeam/AdGuardHome/blob/595484e0b3fb4c457f9bb727a6b94faa78a66c5f/internal/home/controlupdate.go#L108
+-	log.Infoln("start update")
+-	execPath, err := os.Executable()
+-	if err != nil {
+-		render.Status(r, http.StatusInternalServerError)
+-		render.JSON(w, r, newError(fmt.Sprintf("getting path: %s", err)))
+-		return
+-	}
+-
+-	query := r.URL.Query()
+-	channel := query.Get("channel")
+-	force := query.Get("force") == "true"
+-
+-	err = updater.DefaultCoreUpdater.Update(execPath, channel, force)
+-	if err != nil {
+-		log.Warnln("%s", err)
+-		render.Status(r, http.StatusInternalServerError)
+-		render.JSON(w, r, newError(fmt.Sprintf("%s", err)))
+-		return
+-	}
+-
+-	render.JSON(w, r, render.M{"status": "ok"})
+-	if f, ok := w.(http.Flusher); ok {
+-		f.Flush()
+-	}
+-
+-	go restartExecutable(execPath)
++	render.Status(r, http.StatusForbidden)
++	render.JSON(w, r, newError(updater.ErrLocalArtifactUpdatesDisabled.Error()))
+ }
+ 
+ func updateUI(w http.ResponseWriter, r *http.Request) {
+-	err := updater.DefaultUiUpdater.DownloadUI()
+-	if err != nil {
+-		log.Warnln("%s", err)
+-		render.Status(r, http.StatusInternalServerError)
+-		render.JSON(w, r, newError(fmt.Sprintf("%s", err)))
+-		return
+-	}
+-
+-	render.JSON(w, r, render.M{"status": "ok"})
+-	if f, ok := w.(http.Flusher); ok {
+-		f.Flush()
+-	}
++	render.Status(r, http.StatusForbidden)
++	render.JSON(w, r, newError(updater.ErrLocalArtifactUpdatesDisabled.Error()))
+ }
+diff --git a/local_policy_test.go b/local_policy_test.go
+new file mode 100644
+index 0000000..ba72d79
+--- /dev/null
++++ b/local_policy_test.go
+@@ -0,0 +1,70 @@
++package main
++
++import (
++	"flag"
++	"io"
++	"testing"
++)
++
++func localPolicyFlagSet() *flag.FlagSet {
++	flags := flag.NewFlagSet("local-policy-test", flag.ContinueOnError)
++	flags.SetOutput(io.Discard)
++	registerLocalFlags(flags)
++	return flags
++}
++
++func TestLocalPolicyIgnoresInheritedStartupOverrides(t *testing.T) {
++	for _, name := range []string{
++		"CLASH_HOME_DIR", "CLASH_CONFIG_FILE", "CLASH_CONFIG_STRING",
++		"CLASH_AGE_SECRET_KEY", "CLASH_OVERRIDE_EXTERNAL_UI_DIR",
++		"CLASH_OVERRIDE_EXTERNAL_CONTROLLER", "CLASH_OVERRIDE_EXTERNAL_CONTROLLER_TLS",
++		"CLASH_OVERRIDE_EXTERNAL_CONTROLLER_UNIX", "CLASH_OVERRIDE_EXTERNAL_CONTROLLER_PIPE",
++		"CLASH_OVERRIDE_SECRET", "CLASH_POST_UP", "CLASH_POST_DOWN",
++	} {
++		t.Setenv(name, "untrusted-inherited-value")
++	}
++	t.Setenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER_ROUTING_MARK", "42")
++	flags := localPolicyFlagSet()
++	if err := flags.Parse(nil); err != nil {
++		t.Fatal(err)
++	}
++	for _, name := range []string{
++		"d", "f", "config", "age-secret-key", "ext-ui", "ext-ctl",
++		"ext-ctl-tls", "ext-ctl-unix", "ext-ctl-pipe", "secret",
++	} {
++		if value := flags.Lookup(name).Value.String(); value != "" {
++			t.Fatalf("inherited environment changed %q to %q", name, value)
++		}
++	}
++	if externalControllerRoutingMark != 0 {
++		t.Fatal("inherited environment changed the controller routing mark")
++	}
++}
++
++func TestLocalPolicyPreservesExplicitConfigAndIPCFlags(t *testing.T) {
++	flags := localPolicyFlagSet()
++	if err := flags.Parse([]string{
++		"-d", "/policy-test/profile", "-f", "/policy-test/config.yaml",
++		"-ext-ctl-unix", "/policy-test/controller.sock", "-t",
++	}); err != nil {
++		t.Fatal(err)
++	}
++	if homeDir != "/policy-test/profile" || configFile != "/policy-test/config.yaml" ||
++		externalControllerUnix != "/policy-test/controller.sock" || !testConfig {
++		t.Fatal("explicit profile, config, IPC or test flags were not preserved")
++	}
++}
++
++func TestLocalPolicyRejectsShellHookFlags(t *testing.T) {
++	for _, name := range []string{"post-up", "post-down"} {
++		for _, prefix := range []string{"-", "--"} {
++			flags := localPolicyFlagSet()
++			if flags.Lookup(name) != nil {
++				t.Fatalf("shell hook %q is still registered", name)
++			}
++			if err := flags.Parse([]string{prefix + name, "must-not-run"}); err == nil {
++				t.Fatalf("shell hook %q was accepted", prefix+name)
++			}
++		}
++	}
++}
+diff --git a/main.go b/main.go
+index 972caf8..ef2e5b6 100644
+--- a/main.go
++++ b/main.go
+@@ -11,11 +11,9 @@ import (
+ 	"os/signal"
+ 	"path/filepath"
+ 	"runtime"
+-	"strconv"
+ 	"strings"
+ 	"syscall"
+ 
+-	"github.com/metacubex/mihomo/common/cmd"
+ 	"github.com/metacubex/mihomo/component/age"
+ 	"github.com/metacubex/mihomo/component/generator"
+ 	"github.com/metacubex/mihomo/component/geodata"
+@@ -47,37 +45,35 @@ var (
+ 	externalControllerPipe        string
+ 	externalControllerRoutingMark int
+ 	secret                        string
+-	postUp                        string
+-	postDown                      string
+ )
+ 
+-func getIntEnv(key string) int {
+-	value := os.Getenv(key)
+-	intValue, _ := strconv.Atoi(value)
+-	return intValue
++func registerLocalFlags(flags *flag.FlagSet) {
++	// Inherited environment must not override the local GUI's generated config
++	// or controller policy. Explicit configuration and IPC flags stay supported.
++	flags.StringVar(&homeDir, "d", "", "set configuration directory")
++	flags.StringVar(&configFile, "f", "", "specify configuration file")
++	flags.StringVar(&configString, "config", "", "specify base64-encoded configuration string")
++	flags.StringVar(&ageSecretKey, "age-secret-key", "", "specify age secret key to decrypt configuration")
++	flags.StringVar(&externalUI, "ext-ui", "", "override external ui directory")
++	flags.StringVar(&externalController, "ext-ctl", "", "override external controller address")
++	flags.StringVar(&externalControllerTLS, "ext-ctl-tls", "", "override external controller tls address")
++	flags.StringVar(&externalControllerUnix, "ext-ctl-unix", "", "override external controller unix address")
++	flags.StringVar(&externalControllerPipe, "ext-ctl-pipe", "", "override external controller pipe address")
++	flags.IntVar(&externalControllerRoutingMark, "ext-ctl-routing-mark", 0, "override external controller routing mark")
++	flags.StringVar(&secret, "secret", "", "override secret for RESTful API")
++	// Shell lifecycle hooks are deliberately unavailable in the local build.
++	flags.BoolVar(&geodataMode, "m", false, "set geodata mode")
++	flags.BoolVar(&version, "v", false, "show current version of mihomo")
++	flags.BoolVar(&testConfig, "t", false, "test configuration and exit")
+ }
+ 
+ func init() {
+-	flag.StringVar(&homeDir, "d", os.Getenv("CLASH_HOME_DIR"), "set configuration directory")
+-	flag.StringVar(&configFile, "f", os.Getenv("CLASH_CONFIG_FILE"), "specify configuration file")
+-	flag.StringVar(&configString, "config", os.Getenv("CLASH_CONFIG_STRING"), "specify base64-encoded configuration string")
+-	flag.StringVar(&ageSecretKey, "age-secret-key", os.Getenv("CLASH_AGE_SECRET_KEY"), "specify age secret key to decrypt configuration")
+-	flag.StringVar(&externalUI, "ext-ui", os.Getenv("CLASH_OVERRIDE_EXTERNAL_UI_DIR"), "override external ui directory")
+-	flag.StringVar(&externalController, "ext-ctl", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER"), "override external controller address")
+-	flag.StringVar(&externalControllerTLS, "ext-ctl-tls", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER_TLS"), "override external controller tls address")
+-	flag.StringVar(&externalControllerUnix, "ext-ctl-unix", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER_UNIX"), "override external controller unix address")
+-	flag.StringVar(&externalControllerPipe, "ext-ctl-pipe", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER_PIPE"), "override external controller pipe address")
+-	flag.IntVar(&externalControllerRoutingMark, "ext-ctl-routing-mark", getIntEnv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER_ROUTING_MARK"), "override external controller routing mark")
+-	flag.StringVar(&secret, "secret", os.Getenv("CLASH_OVERRIDE_SECRET"), "override secret for RESTful API")
+-	flag.StringVar(&postUp, "post-up", os.Getenv("CLASH_POST_UP"), "set post-up script")
+-	flag.StringVar(&postDown, "post-down", os.Getenv("CLASH_POST_DOWN"), "set post-down script")
+-	flag.BoolVar(&geodataMode, "m", false, "set geodata mode")
+-	flag.BoolVar(&version, "v", false, "show current version of mihomo")
+-	flag.BoolVar(&testConfig, "t", false, "test configuration and exit")
+-	flag.Parse()
++	registerLocalFlags(flag.CommandLine)
+ }
+ 
+ func main() {
++	flag.Parse()
++
+ 	// Defensive programming: panic when code mistakenly calls net.DefaultResolver
+ 	net.DefaultResolver.PreferGo = true
+ 	net.DefaultResolver.Dial = func(ctx context.Context, network, address string) (net.Conn, error) {
+@@ -175,13 +171,13 @@ func main() {
+ 	if testConfig {
+ 		if len(configBytes) != 0 {
+ 			if _, err := executor.ParseWithBytes(configBytes); err != nil {
+-				log.Errorln(err.Error())
++				log.Errorln("%s", err.Error())
+ 				fmt.Println("configuration test failed")
+ 				os.Exit(1)
+ 			}
+ 		} else {
+ 			if _, err := executor.Parse(); err != nil {
+-				log.Errorln(err.Error())
++				log.Errorln("%s", err.Error())
+ 				fmt.Printf("configuration file %s test failed\n", C.Path.Config())
+ 				os.Exit(1)
+ 			}
+@@ -221,19 +217,6 @@ func main() {
+ 		updater.RegisterGeoUpdater()
+ 	}
+ 
+-	if postDown != "" {
+-		defer func() {
+-			if _, err := cmd.ExecShell(postDown); err != nil {
+-				log.Errorln("post-down script error: %s", err.Error())
+-			}
+-		}()
+-	}
+-	if postUp != "" {
+-		if _, err := cmd.ExecShell(postUp); err != nil {
+-			log.Fatalln("post-up script error: %s", err.Error())
+-		}
+-	}
+-
+ 	defer executor.Shutdown()
+ 
+ 	termSign := make(chan os.Signal, 1)

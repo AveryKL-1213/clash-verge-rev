@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import { BaseDialog, DialogRef, Switch } from '@/components/base'
 import { useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
+import { IS_LOCAL_BUILD } from '@/services/local-build'
 import { showNotice } from '@/services/notice-service'
 
 export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
@@ -124,6 +125,12 @@ export function ControllerViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onCancel={() => setOpen(false)}
       onOk={onSave}
     >
+      {IS_LOCAL_BUILD && (
+        <Alert severity="info">
+          Local build: the controller API is restricted to loopback and local
+          app origins. LAN proxy and TUN gateway access use separate listeners.
+        </Alert>
+      )}
       <List>
         <ListItem
           sx={{

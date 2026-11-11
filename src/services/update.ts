@@ -7,6 +7,8 @@ import { compareVersions as compareSemver } from 'compare-versions'
 
 import { version as appVersion } from '@root/package.json'
 
+import { IS_LOCAL_BUILD, LOCAL_BUILD_UPDATE_NOTICE } from './local-build'
+
 const SEMVER_FULL_REGEX =
   /^\d+(?:\.\d+){1,2}(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 const SEMVER_SEARCH_REGEX =
@@ -72,6 +74,7 @@ const localVersionNormalized = normalizeVersion(appVersion)
 export const checkUpdateSafe = async (
   options?: CheckOptions,
 ): Promise<Update | null> => {
+  if (IS_LOCAL_BUILD) throw new Error(LOCAL_BUILD_UPDATE_NOTICE)
   const result = await check(options ?? {})
   if (!result) return null
 

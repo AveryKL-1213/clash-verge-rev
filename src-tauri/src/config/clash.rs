@@ -32,13 +32,7 @@ impl IClashTemp {
                     }
                 }
 
-                // 确保 secret 字段存在且不为空
-                if let Some(val) = map.get_mut("secret")
-                    && let Value::String(s) = val
-                    && s.is_empty()
-                {
-                    *s = "set-your-secret".into();
-                }
+                Self::normalize_secret(&mut map);
 
                 Self(Self::guard(map))
             }
@@ -107,7 +101,7 @@ impl IClashTemp {
             ]
             .into(),
         );
-        map.insert("secret".into(), "set-your-secret".into());
+        map.insert("secret".into(), Self::default_secret().into());
         map.insert("external-controller-cors".into(), cors_map.into());
         map.insert("unified-delay".into(), true.into());
         Self(map)
@@ -143,9 +137,32 @@ impl IClashTemp {
         config
     }
 
+    fn default_secret() -> std::string::String {
+        if crate::core::local_build::ENABLED {
+            nanoid::nanoid!(32)
+        } else {
+            "set-your-secret".to_owned()
+        }
+    }
+
+    fn normalize_secret(config: &mut Mapping) {
+        if crate::core::local_build::ENABLED {
+            if !crate::core::local_build::has_valid_controller_secret(config) {
+                config.insert("secret".into(), Self::default_secret().into());
+            }
+        } else if let Some(Value::String(secret)) = config.get_mut("secret")
+            && secret.is_empty()
+        {
+            *secret = Self::default_secret();
+        }
+    }
+
     pub fn patch_config(&mut self, patch: &Mapping) {
         for (key, value) in patch.iter() {
             self.0.insert(key.to_owned(), value.to_owned());
+        }
+        if crate::core::local_build::ENABLED {
+            Self::normalize_secret(&mut self.0);
         }
     }
 
@@ -276,7 +293,12 @@ impl IClashTemp {
                         false => Cow::Borrowed(val_str),
                     };
 
-                    SocketAddr::from_str(&val).ok().map(|s| s.to_string())
+                    SocketAddr::from_str(&val).ok().map(|mut socket| {
+                        if crate::core::local_build::ENABLED && !socket.ip().is_loopback() {
+                            socket.set_ip(Ipv4Addr::LOCALHOST.into());
+                        }
+                        socket.to_string()
+                    })
                 }
                 None => None,
             })
@@ -318,6 +340,55 @@ pub struct ClashInfo {
     pub server: String,
     /// clash secret
     pub secret: Option<String>,
+}
+
+#[cfg(all(test, feature = "local-build"))]
+mod local_secret_tests {
+    use super::{IClashTemp, Mapping, Value};
+
+    #[test]
+    fn loaded_and_patched_invalid_secrets_are_replaced() -> anyhow::Result<()> {
+        for input in [
+            "{}",
+            "secret: null",
+            "secret: false",
+            "secret: 1234",
+            "secret: ''",
+            "secret: '   '",
+            "secret: set-your-secret",
+        ] {
+            let original: Mapping = serde_yaml_ng::from_str(input)?;
+            let mut loaded = original.clone();
+            IClashTemp::normalize_secret(&mut loaded);
+            assert!(
+                crate::core::local_build::has_valid_controller_secret(&loaded),
+                "loaded {input:?}"
+            );
+
+            let mut config = IClashTemp(original.clone());
+            config.patch_config(&original);
+            assert!(
+                crate::core::local_build::has_valid_controller_secret(&config.0),
+                "patched {input:?}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn valid_secrets_survive_loading_and_unrelated_patches() -> anyhow::Result<()> {
+        let mut loaded: Mapping = serde_yaml_ng::from_str("secret: existing-private-secret\nallow-lan: true")?;
+        IClashTemp::normalize_secret(&mut loaded);
+        let secret = loaded.get("secret").cloned();
+        let mut config = IClashTemp(loaded);
+        let mut patch = Mapping::new();
+        patch.insert("log-level".into(), "warn".into());
+        config.patch_config(&patch);
+        assert_eq!(secret, Some(Value::from("existing-private-secret")));
+        assert_eq!(config.0.get("secret"), secret.as_ref());
+        assert_eq!(config.0.get("allow-lan"), Some(&Value::from(true)));
+        Ok(())
+    }
 }
 
 #[test]

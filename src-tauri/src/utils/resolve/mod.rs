@@ -170,6 +170,15 @@ async fn init_silent_updater() {
     use crate::core::SilentUpdater;
     use crate::core::handle::Handle;
 
+    if crate::core::local_build::ENABLED {
+        logging!(
+            info,
+            Type::Setup,
+            "Local build: app updates must be built and installed locally"
+        );
+        return;
+    }
+
     logging!(debug, Type::Setup, "Initializing silent updater...");
 
     let app_handle = Handle::app_handle();

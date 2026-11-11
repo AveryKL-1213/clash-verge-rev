@@ -960,6 +960,7 @@ pub async fn enhance(
     notify_discarded_keys(authoritative.overridden(&authoritative, &authoritative.current(&config)));
     let config = authoritative.enforce(config);
     let config = ensure_lan_bind_address(config);
+    let config = crate::core::local_build::restrict_control_plane(config);
 
     let config = cleanup_proxy_groups(config);
     let config = use_sort(config);

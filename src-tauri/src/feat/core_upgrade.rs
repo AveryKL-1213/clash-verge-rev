@@ -41,6 +41,7 @@ pub struct CoreUpgradeReport {
 }
 
 pub async fn upgrade_core(force: bool) -> Result<CoreUpgradeReport> {
+    crate::core::local_build::ensure_binary_updates_allowed()?;
     let _serialized = UPGRADE_LOCK.lock().await;
     let core = Config::verge().await.latest_arc().get_valid_clash_core();
     tracing::Span::current().record("core", tracing::field::display(&core));
@@ -467,6 +468,15 @@ fn read_core_version(path: &Path) -> Result<std::string::String> {
 #[cfg(test)]
 mod tests {
     use super::{is_usable_version, package_url};
+
+    #[cfg(feature = "local-build")]
+    #[tokio::test]
+    async fn local_build_rejects_upgrade_before_accessing_app_state_or_network() {
+        for force in [false, true] {
+            let result = super::upgrade_core(force).await;
+            assert!(result.is_err_and(|error| error.to_string().contains("cannot install downloaded")));
+        }
+    }
 
     #[test]
     fn only_plain_version_tokens_reach_the_package_url() {

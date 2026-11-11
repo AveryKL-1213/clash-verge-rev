@@ -1,4 +1,4 @@
-import { Box, Button, Typography } from '@mui/material'
+import { Alert, Box, Button, Typography } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
 import { useImperativeHandle, useMemo, useState } from 'react'
@@ -9,13 +9,14 @@ import { useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { showNotice } from '@/services/notice-service'
 import { openExternalUrl } from '@/utils/open-external-url'
+import { buildWebUiUrl, WEB_UI_CREDENTIAL_NOTICE } from '@/utils/web-ui-url'
 
 import { WebUIItem } from './web-ui-item'
 
 const DEFAULT_WEB_UI_LIST = [
-  'https://metacubex.github.io/metacubexd/#/setup?http=true&hostname=%host&port=%port&secret=%secret',
-  'https://yacd.metacubex.one/?hostname=%host&port=%port&secret=%secret',
-  'https://board.zash.run.place/#/setup?http=true&hostname=%host&port=%port&secret=%secret',
+  'https://metacubex.github.io/metacubexd/#/setup?http=true&hostname=%host&port=%port',
+  'https://yacd.metacubex.one/?hostname=%host&port=%port',
+  'https://board.zash.run.place/#/setup?http=true&hostname=%host&port=%port',
 ]
 
 export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
@@ -71,33 +72,7 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
   const handleOpenUrl = useLockFn(async (value?: string) => {
     if (!value) return
     try {
-      let url = value.trim().replaceAll('%host', '127.0.0.1')
-
-      if (url.includes('%port') || url.includes('%secret')) {
-        if (!clashInfo) {
-          throw new Error(
-            t('settings.modals.webUI.errors.clashInfoUnavailable'),
-          )
-        }
-        if (!clashInfo.server?.includes(':')) {
-          throw new Error(
-            t('settings.modals.webUI.errors.invalidServer', {
-              server: clashInfo.server,
-            }),
-          )
-        }
-
-        const port = clashInfo.server
-          .slice(clashInfo.server.indexOf(':') + 1)
-          .trim()
-
-        url = url.replaceAll('%port', port || '9097')
-        url = url.replaceAll(
-          '%secret',
-          encodeURIComponent(clashInfo.secret || ''),
-        )
-      }
-
+      const url = buildWebUiUrl(value, clashInfo?.server)
       await openExternalUrl(url)
     } catch (e: any) {
       showNotice.error('settings.modals.webUI.errors.openFailed', e)
@@ -132,11 +107,12 @@ export function WebUIViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
     >
+      <Alert severity="info">{WEB_UI_CREDENTIAL_NOTICE}</Alert>
       {!editing && webUIList.length === 0 && (
         <BaseEmpty
           extra={
             <Typography sx={{ mt: 2, fontSize: '12px' }}>
-              {t('settings.modals.webUI.messages.placeholderInstruction')}
+              Add a trusted dashboard URL. Supported placeholders: %host, %port.
             </Typography>
           }
         />

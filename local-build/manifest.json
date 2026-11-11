@@ -1,0 +1,49 @@
+{
+  "upstream": "c83f7ad529c7c9cb3d2d54a0955ef8c1b22a411b",
+  "version": "2.5.10-local.1",
+  "target": "aarch64-apple-darwin",
+  "rust": "1.99.1",
+  "node": {
+    "version": "26.13.0",
+    "url": "https://nodejs.org/dist/v26.13.0/node-v26.13.0-darwin-arm64.tar.gz",
+    "sha256": "d38bd5e5a2ddce6bbb5ce45e46e208337da4d51fffe611e567fd32073d6439f6"
+  },
+  "pnpm": "12.16.1",
+  "go": {
+    "version": "1.27.4",
+    "url": "https://go.dev/dl/go1.27.4.darwin-arm64.tar.gz",
+    "sha256": "91a44a2b8a716600ad94a4f143e156116620db8828086a6e3602291be9bd0bb4"
+  },
+  "mihomo": {
+    "repository": "https://github.com/MetaCubeX/mihomo.git",
+    "tag": "v1.19.34",
+    "commit": "0455d0d28c4526937380505153e65a843d8612e8"
+  },
+  "geodataReleaseId": 441152447,
+  "geodata": [
+    {
+      "file": "Country.mmdb",
+      "asset": "country.mmdb",
+      "assetId": 733753067,
+      "sha256": "c0c6ea5661a3167abb24bbbaf629605aa3856c425384cbf2897c5a0f41027663"
+    },
+    {
+      "file": "ASN.mmdb",
+      "asset": "GeoLite2-ASN.mmdb",
+      "assetId": 733753043,
+      "sha256": "3f729dfdbca46d6bc83fe084e15e335cef702b46f9d9afb8feaede36180959f4"
+    },
+    {
+      "file": "geoip.dat",
+      "asset": "geoip.dat",
+      "assetId": 733753125,
+      "sha256": "90b78ab861c1cdc3f871f305f9ceedfb8d6d6329e3a40295e6773e057297384c"
+    },
+    {
+      "file": "geosite.dat",
+      "asset": "geosite.dat",
+      "assetId": 733753182,
+      "sha256": "da712b401ea6f4fdb45983e7a3458332decb85c244307b443df3e11feb4af366"
+    }
+  ]
+}

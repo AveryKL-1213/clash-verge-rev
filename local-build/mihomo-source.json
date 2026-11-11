@@ -1,0 +1,122 @@
+{
+  "repository": "https://github.com/MetaCubeX/mihomo.git",
+  "tag": "v1.19.34",
+  "tagObject": "0455d0d28c4526937380505153e65a843d8612e8",
+  "commit": "0455d0d28c4526937380505153e65a843d8612e8",
+  "goModSha256": "35ae3059db774cd73cec37266d8d88e2205753e4ef10759a941df26104d2bd59",
+  "goSumSha256": "a1c15d9672ba1717d90b94165c6209de51f71476b637318232705dd87c1f2450",
+  "patch": "patches/mihomo-local-policy.patch",
+  "patchSha256": "d44ca1b76be61c5c7398072513efee675a5cff56a7408c3835b4cd2061cb01d7",
+  "features": ["with_gvisor"],
+  "binaries": ["verge-mihomo"],
+  "signingIdentity": "-",
+  "localPolicy": {
+    "restCoreUpgrade": "403 Forbidden",
+    "restUiUpgrade": "403 Forbidden",
+    "coreUpdater": "denied before filesystem/network access",
+    "uiDownload": "denied for explicit and automatic downloads",
+    "geoUpdates": "unchanged",
+    "tunAndTransport": "unchanged",
+    "shellLifecycleHooks": "post-up/post-down flags rejected; environment hooks and shell execution removed",
+    "startupEnvironmentOverrides": "all CLASH_* startup defaults ignored; explicit configuration and IPC flags preserved",
+    "unsafePathEnvironment": "SKIP_SAFE_PATH_CHECK and SAFE_PATHS ignored",
+    "otherDnsTunEnvironment": "unchanged"
+  },
+  "validation": {
+    "commands": [
+      {
+        "command": "CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 GOTOOLCHAIN=local go test -p=4 -mod=readonly -tags=with_gvisor . ./constant ./component/updater ./hub/route ./rules/provider -run 'TestLocalPolicy|TestDomainStrategyDumpMrs' -count=1",
+        "result": "passed (5 packages)"
+      },
+      {
+        "command": "CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 GOTOOLCHAIN=local go build -p=4 -mod=readonly -tags=with_gvisor -trimpath -o <private-temporary-binary> .",
+        "result": "passed; stripped and symbol-preserving diagnostic binaries built"
+      },
+      {
+        "command": "GOTOOLCHAIN=local go mod verify",
+        "result": "all modules verified"
+      }
+    ],
+    "isolatedBinaryChecks": {
+      "versionExit": 0,
+      "validConfigTestExit": 0,
+      "postUpFlagExit": 2,
+      "postDownFlagExit": 2,
+      "controllerSocketCreated": false,
+      "performedBeforeSecurityDependencyUpgrade": true
+    },
+    "networkListenersStarted": false,
+    "productionCoreStarted": false,
+    "patchReverseCheck": "passed",
+    "goModAndSumUnchangedFromBase": false,
+    "limitation": "Live TUN, LAN forwarding, node transport and service restart acceptance remain pending. Raising the Go module language floor to 1.26 also changes standard-library compatibility defaults. Earlier isolated flag/config checks used the core before these dependency upgrades.",
+    "patchTreeMatchesSource": true,
+    "mrsCompatibility": {
+      "domain": "baseline and security cores read each other’s output identically",
+      "ipcidr": "baseline and security cores read each other’s output identically"
+    },
+    "knownVulnerabilityScan": {
+      "date": "2026-11-12",
+      "scanner": "govulncheck v1.9.0",
+      "database": "https://vuln.go.dev",
+      "databaseLastModified": "2026-11-11T02:51:11Z",
+      "sourceCommand": "govulncheck -tags=with_gvisor -json .",
+      "sourceTarget": "darwin/arm64",
+      "beforeMainReachableAdvisories": [
+        "GO-2025-3503",
+        "GO-2026-4918",
+        "GO-2026-5026",
+        "GO-2026-5970",
+        "GO-2026-6603",
+        "GO-2026-6610",
+        "GO-2026-6611",
+        "GO-2026-6612",
+        "GO-2026-6617",
+        "GO-2026-6865",
+        "GO-2026-6888"
+      ],
+      "afterMainReachableAdvisoryCount": 0,
+      "symbolPreservingBinaryImportedPackageFindingCount": 0,
+      "symbolPreservingBinarySymbolFindingCount": 0,
+      "remainingModuleOnlyAdvisories": [
+        {
+          "id": "GO-2026-6237",
+          "module": "github.com/insomniacslk/dhcp",
+          "fixed": "v0.0.0-20260719225207-c76316d4aa82",
+          "reason": "Affected dhcpv4/nclient4 package is not imported by this Darwin build."
+        },
+        {
+          "id": "GO-2026-5932",
+          "module": "golang.org/x/crypto",
+          "fixed": "v0.58.1-0.20261009181718-2f1f834330b2",
+          "reason": "Affected OpenPGP packages are not imported."
+        },
+        {
+          "id": "GO-2026-6860",
+          "module": "golang.org/x/net",
+          "fixed": "v0.62.0",
+          "reason": "Affected html package is not imported."
+        },
+        {
+          "id": "GO-2026-6866",
+          "module": "golang.org/x/net",
+          "fixed": "v0.62.0",
+          "reason": "Affected html package is not imported."
+        }
+      ],
+      "strippedBinaryCaveat": "govulncheck falls back to all known vulnerable symbols in matched modules when Mach-O symbols are stripped; those reported symbols do not establish linkage or reachability.",
+      "limitation": "This is a database and static-call-graph check, not proof of exploitability or absence of unknown vulnerabilities. Forked dependency module paths may not inherit upstream database entries."
+    }
+  },
+  "baseGoModSha256": "83ca6bf0ac01be6e27d867bce5e2cd88545e0109569f80918943a1a74ffae2cf",
+  "baseGoSumSha256": "2261c66083889f247acddf9757411fa6980581bf43f009302223e2c94dcb7c3e",
+  "securityDependencyOverrides": {
+    "github.com/andybalholm/brotli": "v1.2.7",
+    "github.com/klauspost/compress": "v1.20.2",
+    "golang.org/x/net": "v0.60.0",
+    "golang.org/x/text": "v0.42.0",
+    "reason": "First fixed releases for main-reachable advisories, with x/text and other x/* dependencies selected by Go minimal version selection from x/net v0.60.0.",
+    "minimumGoVersion": "1.26.0",
+    "buildGoVersion": "1.27.4"
+  }
+}

@@ -13,6 +13,10 @@ import {
   openDevTools,
   openLogsDir,
 } from '@/services/cmds'
+import {
+  IS_LOCAL_BUILD,
+  LOCAL_BUILD_UPDATE_NOTICE,
+} from '@/services/local-build'
 import { mutate } from '@/services/mutate'
 import { showNotice } from '@/services/notice-service'
 import { checkUpdateSafe as checkUpdate } from '@/services/update'
@@ -45,6 +49,10 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
   const liteModeRef = useRef<DialogRef>(null)
 
   const onCheckUpdate = async () => {
+    if (IS_LOCAL_BUILD) {
+      showNotice.info(LOCAL_BUILD_UPDATE_NOTICE)
+      return
+    }
     try {
       const info = await checkUpdate()
       updateLastCheckTime()
@@ -128,7 +136,11 @@ const SettingVergeAdvanced = ({ onError: _ }: Props) => {
 
       <SettingItem
         onClick={onCheckUpdate}
-        label={t('settings.components.verge.advanced.fields.checkUpdates')}
+        label={
+          IS_LOCAL_BUILD
+            ? 'Local build updates'
+            : t('settings.components.verge.advanced.fields.checkUpdates')
+        }
       />
 
       <SettingItem

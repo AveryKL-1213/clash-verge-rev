@@ -162,6 +162,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  dompurify: 3.4.17
+
+patchedDependencies:
+  monaco-editor@0.57.0: 13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba
+
 importers:
 
   .:
@@ -189,7 +195,7 @@ importers:
         version: 3.4.0
       '@monaco-editor/react':
         specifier: ^4.7.0
-        version: 4.7.0(monaco-editor@0.57.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 4.7.0(monaco-editor@0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@mui/icons-material':
         specifier: ^9.4.0
         version: 9.4.0(@mui/material@9.4.0(@emotion/react@11.14.0(@types/react@19.3.0)(react@19.3.1)(supports-color@7.2.0))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.3.0)(react@19.3.1)(supports-color@7.2.0))(@types/react@19.3.0)(react@19.3.1)(supports-color@7.2.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(@types/react@19.3.0)(react@19.3.1)
@@ -252,10 +258,10 @@ importers:
         version: 1.19.31
       monaco-editor:
         specifier: ^0.57.0
-        version: 0.57.0
+        version: 0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba)
       monaco-yaml:
         specifier: ^5.5.1
-        version: 5.5.1(monaco-editor@0.57.0)
+        version: 5.5.1(monaco-editor@0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba))
       nanoid:
         specifier: ^6.0.1
         version: 6.0.1
@@ -3141,8 +3147,8 @@ packages:
     resolution: {integrity: sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w==}
     engines: {node: '>= 4'}
 
-  dompurify@3.4.15:
-    resolution: {integrity: sha512-EUBjM+B+lkDE41iE82DDSCfkoPGfXx8IxFxPMjNzm/Uk4xDet77rTN9wqlxlVg71kK7XGuUMv6wUxJUwwv+Xyw==}
+  dompurify@3.4.17:
+    resolution: {integrity: sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==}
 
   domutils@3.2.2:
     resolution: {integrity: sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw==}
@@ -6327,10 +6333,10 @@ snapshots:
     dependencies:
       state-local: 1.0.7
 
-  '@monaco-editor/react@4.7.0(monaco-editor@0.57.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@monaco-editor/react@4.7.0(monaco-editor@0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@monaco-editor/loader': 1.7.0
-      monaco-editor: 0.57.0
+      monaco-editor: 0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
@@ -7818,7 +7824,7 @@ snapshots:
     dependencies:
       domelementtype: 2.3.0
 
-  dompurify@3.4.15:
+  dompurify@3.4.17:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -9104,9 +9110,9 @@ snapshots:
 
   modern-tar@0.8.5: {}
 
-  monaco-editor@0.57.0:
+  monaco-editor@0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba):
     dependencies:
-      dompurify: 3.4.15
+      dompurify: 3.4.17
       marked: 14.0.0
 
   monaco-languageserver-types@0.4.1:
@@ -9121,19 +9127,19 @@ snapshots:
 
   monaco-types@0.1.2: {}
 
-  monaco-worker-manager@2.0.1(monaco-editor@0.57.0):
+  monaco-worker-manager@2.0.1(monaco-editor@0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba)):
     dependencies:
-      monaco-editor: 0.57.0
+      monaco-editor: 0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba)
 
-  monaco-yaml@5.5.1(monaco-editor@0.57.0):
+  monaco-yaml@5.5.1(monaco-editor@0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba)):
     dependencies:
       '@vscode/l10n': 0.0.18
       jsonc-parser: 3.3.1
-      monaco-editor: 0.57.0
+      monaco-editor: 0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba)
       monaco-languageserver-types: 0.4.1
       monaco-marker-data-provider: 1.2.5
       monaco-types: 0.1.2
-      monaco-worker-manager: 2.0.1(monaco-editor@0.57.0)
+      monaco-worker-manager: 2.0.1(monaco-editor@0.57.0(patch_hash=13797188fc232bbd1782f84f1b36aad757375890541f582031d3124ae7c783ba))
       path-browserify: 1.0.1
       prettier: 3.9.8
       proxy-disposable: 1.0.0

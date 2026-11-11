@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/clash-verge-rev/clash-verge-service-ipc.git",
+  "tag": "v2.7.7",
+  "tagObject": "2d4be1b309c2d309b4de51ae1127d3db9a8f5f9d",
+  "commit": "3ed29700b093190b5e7addcaa892e77f172af544",
+  "cargoLockSha256": "5fabe17ab9f518c279181cf19ccfaa5115ca79b1c5ac1c9d1855797e4c057365",
+  "patch": "patches/service-local-name.patch",
+  "patchSha256": "7d4029dfda90fd9f24a278629b7071b1998a5e89a03cb3effbce24611b73e106",
+  "features": ["standalone", "client"],
+  "binaries": [
+    "clash-verge-service",
+    "clash-verge-service-install",
+    "clash-verge-service-uninstall"
+  ],
+  "signingIdentity": "-",
+  "signingIdentifier": "io.github.clash-verge-rev.clash-verge-rev-service-ipc"
+}

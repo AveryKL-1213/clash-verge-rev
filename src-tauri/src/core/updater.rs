@@ -314,6 +314,7 @@ impl SilentUpdater {
     /// Checks the server; Windows receives `/LANG` to suppress the NSIS language dialog,
     /// see `packages/windows/installer.nsi`.
     async fn check(app_handle: &tauri::AppHandle) -> Result<Option<Update>> {
+        super::local_build::ensure_binary_updates_allowed()?;
         let updater_builder = app_handle.updater_builder();
         #[cfg(target_os = "windows")]
         let updater_builder = {
@@ -325,11 +326,15 @@ impl SilentUpdater {
     }
 
     async fn install(update: Update, bytes: Vec<u8>) -> Result<()> {
+        super::local_build::ensure_binary_updates_allowed()?;
         Ok(tokio::task::spawn_blocking(move || update.install(&bytes)).await??)
     }
 
     /// Installs a newer cached update before normal startup, if the user confirms.
     pub async fn try_install_on_startup(&self, app_handle: &tauri::AppHandle) -> bool {
+        if super::local_build::ENABLED {
+            return false;
+        }
         if !Config::verge().await.latest_arc().auto_check_update.unwrap_or(true) {
             Self::delete_cache();
             return false;
@@ -431,6 +436,7 @@ impl SilentUpdater {
         version: &str,
         on_event: impl Fn(DownloadEvent) + Sync,
     ) -> Result<bool> {
+        super::local_build::ensure_binary_updates_allowed()?;
         let cancel = CancellationToken::new();
         *self.manual_cancel.lock() = Some(cancel.clone());
         let prepared = tokio::select! {
@@ -594,6 +600,7 @@ impl SilentUpdater {
 
 impl SilentUpdater {
     async fn check_and_download(&self, app_handle: &tauri::AppHandle) -> Result<()> {
+        super::local_build::ensure_binary_updates_allowed()?;
         // Registered before reading the switch, so `discard_pending` either cancels it or ran first.
         let cancel = CancellationToken::new();
         *self.background_cancel.lock() = Some(cancel.clone());
@@ -681,6 +688,9 @@ impl SilentUpdater {
     }
 
     pub async fn start_background_check(&self, app_handle: tauri::AppHandle) {
+        if super::local_build::ENABLED {
+            return;
+        }
         // Permanent watcher: daily update cycles for the lifetime of the app.
         logging!(info, Type::System, "Silent updater: background task started");
 

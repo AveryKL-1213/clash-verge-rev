@@ -808,6 +808,7 @@ impl CoreManager {
 
     #[tracing::instrument(skip_all, level = "info", fields(core = %clash_core))]
     pub async fn change_core(&self, clash_core: &String) -> Result<()> {
+        crate::core::local_build::ensure_core_allowed(clash_core)?;
         if !IVerge::VALID_CLASH_CORES.contains(&clash_core.as_str()) {
             anyhow::bail!("invalid clash core: {clash_core}");
         }

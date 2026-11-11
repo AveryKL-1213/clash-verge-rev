@@ -327,6 +327,9 @@ impl IVerge {
     }
 
     pub fn get_valid_clash_core(&self) -> String {
+        if crate::core::local_build::ENABLED {
+            return "verge-mihomo".into();
+        }
         self.clash_core.clone().unwrap_or_else(|| "verge-mihomo".into())
     }
 

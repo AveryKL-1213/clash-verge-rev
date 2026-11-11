@@ -13,6 +13,10 @@ import { useTranslation } from 'react-i18next'
 
 import { BaseDialog, DialogRef, Switch, TooltipIcon } from '@/components/base'
 import { useVerge } from '@/hooks/use-verge'
+import {
+  IS_LOCAL_BUILD,
+  LOCAL_BUILD_UPDATE_NOTICE,
+} from '@/services/local-build'
 import { showNotice } from '@/services/notice-service'
 
 export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
@@ -201,10 +205,12 @@ export const MiscViewer = forwardRef<DialogRef>((props, ref) => {
         <ListItem sx={{ padding: '5px 2px' }}>
           <ListItemText
             primary={t('settings.modals.misc.fields.autoCheckUpdate')}
+            secondary={IS_LOCAL_BUILD ? LOCAL_BUILD_UPDATE_NOTICE : undefined}
           />
           <Switch
             edge="end"
-            checked={values.autoCheckUpdate}
+            checked={!IS_LOCAL_BUILD && values.autoCheckUpdate}
+            disabled={IS_LOCAL_BUILD}
             onChange={(_, c) =>
               setValues((v) => ({ ...v, autoCheckUpdate: c }))
             }

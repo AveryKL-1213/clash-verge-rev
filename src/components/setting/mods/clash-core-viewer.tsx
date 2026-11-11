@@ -10,6 +10,7 @@ import {
   List,
   ListItemButton,
   ListItemText,
+  Alert,
 } from '@mui/material'
 import { useLockFn } from 'ahooks'
 import type { Ref } from 'react'
@@ -21,6 +22,10 @@ import { BaseDialog, DialogRef } from '@/components/base'
 import { useClash, useClashInfo } from '@/hooks/use-clash'
 import { useVerge } from '@/hooks/use-verge'
 import { changeClashCore, restartCore, upgradeClashCore } from '@/services/cmds'
+import {
+  IS_LOCAL_BUILD,
+  LOCAL_BUILD_UPDATE_NOTICE,
+} from '@/services/local-build'
 import { mutate } from '@/services/mutate'
 import { showNotice } from '@/services/notice-service'
 
@@ -54,9 +59,12 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
     close: () => setOpen(false),
   }))
 
-  const { clash_core = 'verge-mihomo' } = verge ?? {}
+  const clash_core = IS_LOCAL_BUILD
+    ? 'verge-mihomo'
+    : (verge?.clash_core ?? 'verge-mihomo')
 
   const onCoreChange = useLockFn(async (core: string) => {
+    if (IS_LOCAL_BUILD) return
     if (core === clash_core) return
 
     try {
@@ -105,6 +113,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
   })
 
   const onUpgrade = useLockFn(async () => {
+    if (IS_LOCAL_BUILD) return
     try {
       setUpgrading(true)
       await mutate(() => upgradeClashCore(), {
@@ -137,7 +146,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
               startIcon={<SwitchAccessShortcutRounded />}
               loadingPosition="start"
               loading={upgrading}
-              disabled={restarting || changingCore !== null}
+              disabled={IS_LOCAL_BUILD || restarting || changingCore !== null}
               sx={{ marginRight: '8px' }}
               onClick={onUpgrade}
             >
@@ -160,7 +169,7 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
       contentSx={{
         pb: 0,
         width: 400,
-        height: 180,
+        height: IS_LOCAL_BUILD ? 240 : 180,
         overflowY: 'auto',
         userSelect: 'text',
         marginTop: '-8px',
@@ -170,13 +179,20 @@ export function ClashCoreViewer({ ref }: { ref?: Ref<DialogRef> }) {
       onClose={() => setOpen(false)}
       onCancel={() => setOpen(false)}
     >
+      {IS_LOCAL_BUILD && (
+        <Alert severity="info">{LOCAL_BUILD_UPDATE_NOTICE}</Alert>
+      )}
       <List component="nav">
-        {VALID_CORE.map((each) => (
+        {VALID_CORE.filter(
+          (each) => !IS_LOCAL_BUILD || each.core === 'verge-mihomo',
+        ).map((each) => (
           <ListItemButton
             key={each.core}
             selected={each.core === clash_core}
             onClick={() => onCoreChange(each.core)}
-            disabled={changingCore !== null || restarting || upgrading}
+            disabled={
+              IS_LOCAL_BUILD || changingCore !== null || restarting || upgrading
+            }
           >
             <ListItemText primary={each.name} secondary={`/${each.core}`} />
             {changingCore === each.core ? (

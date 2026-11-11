@@ -1,0 +1,26 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 81930ae..7402eb1 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -5,6 +5,8 @@ edition = "2024"
+ authors = ["Tunglies"]
+ license = "GPL-3.0"
+ 
++[workspace]
++
+ [lib]
+ name = "clash_verge_service_ipc"
+ path = "src/lib.rs"
+diff --git a/src/channel.rs b/src/channel.rs
+index 06ca0c9..bc73ae1 100644
+--- a/src/channel.rs
++++ b/src/channel.rs
+@@ -13,7 +13,7 @@ pub const CHANNEL_IDENTITY: ChannelIdentity = ChannelIdentity {
+     id: "production",
+     service_slug: "clash-verge-service",
+     windows_service_name: "clash_verge_service",
+-    service_display_name: "Clash Verge Service",
++    service_display_name: "Clash Verge Local Service",
+     macos_app_bundle_id: "io.github.clash-verge-rev.clash-verge-rev",
+     macos_service_id: "io.github.clash-verge-rev.clash-verge-rev.service",
+ };

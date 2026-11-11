@@ -13,6 +13,9 @@ pub async fn save_webdav_config(
     username: std::string::String,
     password: std::string::String,
 ) -> CmdResult<()> {
+    if !url.trim().is_empty() {
+        core::backup::validate_webdav_url(url.trim()).stringify_err()?;
+    }
     let url: String = url.into();
     let username: String = username.into();
     let password: String = password.into();

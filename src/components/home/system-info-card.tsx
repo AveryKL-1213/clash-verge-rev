@@ -21,6 +21,10 @@ import {
 } from '@/hooks/use-update'
 import { useVerge } from '@/hooks/use-verge'
 import { getSystemInfo } from '@/services/cmds'
+import {
+  IS_LOCAL_BUILD,
+  LOCAL_BUILD_UPDATE_NOTICE,
+} from '@/services/local-build'
 import { showNotice } from '@/services/notice-service'
 import { version as appVersion } from '@root/package.json'
 
@@ -62,7 +66,7 @@ export const SystemInfoCard = () => {
   }, [])
 
   useEffect(() => {
-    if (!verge?.auto_check_update) return
+    if (IS_LOCAL_BUILD || !verge?.auto_check_update) return
     if (readLastCheckTime() !== null) return
 
     updateLastCheckTime()
@@ -98,6 +102,10 @@ export const SystemInfoCard = () => {
   ])
 
   const onCheckUpdate = useLockFn(async () => {
+    if (IS_LOCAL_BUILD) {
+      showNotice.info(LOCAL_BUILD_UPDATE_NOTICE)
+      return
+    }
     try {
       const result = await triggerCheckUpdate()
       const info = result.data
@@ -280,7 +288,7 @@ export const SystemInfoCard = () => {
               '&:hover': { opacity: 0.7 },
             }}
           >
-            {lastCheckUpdateText}
+            {IS_LOCAL_BUILD ? 'Local build' : lastCheckUpdateText}
           </Typography>
         </Stack>
         <Divider />
